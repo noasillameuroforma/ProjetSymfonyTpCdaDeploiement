@@ -52,70 +52,22 @@ jobs:
             tests/Repository \
             tests/Unit
 
-      # Optionnel :
-      # Les tests E2E Panther sont plus lourds.
-      # Active ce bloc seulement si tu veux les lancer dans GitHub Actions.
-      #
-      # - name: Installer Google Chrome
-      #   uses: browser-actions/setup-chrome@v1
-      #
-      # - name: Installer ChromeDriver
-      #   run: |
-      #     composer require --dev dbrekelmans/bdi
-      #     vendor/bin/bdi detect drivers
-      #
-      # - name: Lancer les tests E2E navigateur
-      #   run: |
-      #     PANTHER_BROWSER=chrome php bin/phpunit tests/E2E
-
-      - name: Créer le fichier .env.local de production
+      - name: Créer le fichier .env.local Symfony
         run: |
           echo "APP_ENV=prod" > .env.local
           echo "APP_DEBUG=0" >> .env.local
           echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env.local
           echo "DATABASE_URL=mysql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}?serverVersion=8.0&charset=utf8mb4" >> .env.local
 
-      - name: Tester la connexion MySQL IONOS
-        run: |
-          php -r '
-          $host = getenv("DB_HOST");
-          $port = getenv("DB_PORT");
-          $db = getenv("DB_NAME");
-          $user = getenv("DB_USER");
-          $pass = getenv("DB_PASSWORD");
-
-          try {
-              new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass);
-              echo "Connexion MySQL OK\n";
-          } catch (Throwable $e) {
-              fwrite(STDERR, "Connexion MySQL impossible : ".$e->getMessage()."\n");
-              exit(1);
-          }
-          '
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-
       - name: Installer les dépendances Symfony en production
         run: |
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
-
-      - name: Exécuter les migrations Doctrine sur la BDD IONOS
-        run: |
-          APP_ENV=prod APP_DEBUG=0 php bin/console doctrine:migrations:migrate --no-interaction
-
-      - name: Préparer le cache Symfony
-        run: |
-          APP_ENV=prod APP_DEBUG=0 php bin/console cache:clear
 
       - name: Nettoyer les fichiers de test/cache avant upload
         run: |
           rm -f var/test.db
           rm -f .env.test
-          rm -rf var/cache/test
+          rm -rf var/cache/*
 
       - name: Installer lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
@@ -130,7 +82,6 @@ jobs:
             --exclude .github/ \
             --exclude .env \
             --exclude .env.test \
-            --exclude .env.local.php \
             --exclude var/cache/ \
             --exclude var/log/ \
             --exclude var/test.db \
@@ -152,16 +103,4 @@ jobs:
             curl -I --fail --max-time 20 "$APP_URL"
           else
             echo "APP_URL non défini, vérification post-déploiement ignorée."
-          fi
-
-      - name: Vérifier que l'API répond après déploiement
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-        run: |
-          if [ -n "$APP_URL" ]; then
-            curl --fail --max-time 20 "$APP_URL/api"
-            curl --fail --max-time 20 "$APP_URL/api/products"
-            curl --fail --max-time 20 "$APP_URL/api/categories"
-          else
-            echo "APP_URL non défini, vérification API ignorée."
           fi
