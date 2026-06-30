@@ -31,11 +31,11 @@ class DeploymentReadinessTest extends TestCase
 
         $this->assertFileDoesNotExist(
             $root.'/.env.local',
-            '.env.local ne doit pas être commité. Il doit être généré par GitHub Actions.'
+            '.env.local ne doit pas être commité. Le workflow utilise un .env généré par GitHub Actions.'
         );
     }
 
-    public function testGitHubWorkflowContainsDeploymentSteps(): void
+    public function testGitHubWorkflowContainsMainDeploymentSteps(): void
     {
         $workflow = $this->getWorkflowContent();
 
@@ -43,16 +43,42 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('php bin/phpunit', $workflow);
         $this->assertStringContainsString('lftp', $workflow);
         $this->assertStringContainsString('mirror -R', $workflow);
-        $this->assertStringContainsString('APP_ENV=prod', $workflow);
         $this->assertStringContainsString('/tp_cda/tp_cda_prof', $workflow);
     }
 
-    public function testSymfonyProductionCommandsExistInWorkflow(): void
+    public function testWorkflowCreatesSymfonyProductionEnvFile(): void
     {
         $workflow = $this->getWorkflowContent();
 
+        $this->assertStringContainsString('APP_ENV=prod', $workflow);
         $this->assertStringContainsString('APP_DEBUG=0', $workflow);
+        $this->assertStringContainsString('APP_SECRET', $workflow);
+        $this->assertStringContainsString('DATABASE_URL', $workflow);
+        $this->assertStringContainsString('> .env', $workflow);
+    }
+
+    public function testWorkflowRunsDoctrineMigrations(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
         $this->assertStringContainsString('doctrine:migrations:migrate', $workflow);
+        $this->assertStringContainsString('APP_ENV=prod APP_DEBUG=0', $workflow);
+    }
+
+    public function testWorkflowClearsSymfonyProductionCache(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('cache:clear', $workflow);
+    }
+
+    public function testWorkflowInstallsProductionDependenciesWithoutComposerScripts(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('--no-dev', $workflow);
+        $this->assertStringContainsString('--optimize-autoloader', $workflow);
+        $this->assertStringContainsString('--no-scripts', $workflow);
     }
 
     public function testWorkflowExcludesSensitiveOrUselessDirectories(): void
@@ -61,12 +87,20 @@ class DeploymentReadinessTest extends TestCase
 
         $this->assertStringContainsString('--exclude .git/', $workflow);
         $this->assertStringContainsString('--exclude .github/', $workflow);
-        $this->assertStringContainsString('--exclude .env', $workflow);
         $this->assertStringContainsString('--exclude .env.test', $workflow);
+        $this->assertStringContainsString('--exclude .env.local', $workflow);
         $this->assertStringContainsString('--exclude var/cache/', $workflow);
         $this->assertStringContainsString('--exclude var/log/', $workflow);
         $this->assertStringContainsString('--exclude node_modules/', $workflow);
         $this->assertStringContainsString('--exclude tests/', $workflow);
+    }
+
+    public function testProductionEnvFileIsUploadedToServer(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringNotContainsString('--exclude .env ', $workflow);
+        $this->assertStringNotContainsString('--exclude .env \\', $workflow);
     }
 
     public function testComposerLockExistsAndIsReadable(): void

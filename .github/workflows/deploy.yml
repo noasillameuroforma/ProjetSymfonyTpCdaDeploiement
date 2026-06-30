@@ -52,22 +52,31 @@ jobs:
             tests/Repository \
             tests/Unit
 
-      - name: Créer le fichier .env.local Symfony
+      - name: Créer le fichier .env Symfony de production
         run: |
-          echo "APP_ENV=prod" > .env.local
-          echo "APP_DEBUG=0" >> .env.local
-          echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env.local
-          echo "DATABASE_URL=mysql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}?serverVersion=8.0&charset=utf8mb4" >> .env.local
+          echo "APP_ENV=prod" > .env
+          echo "APP_DEBUG=0" >> .env
+          echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env
+          echo "DEFAULT_URI=${{ secrets.APP_URL }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
 
       - name: Installer les dépendances Symfony en production
         run: |
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
-      - name: Nettoyer les fichiers de test/cache avant upload
+      - name: Exécuter les migrations Doctrine sur la BDD IONOS
+        run: |
+          APP_ENV=prod APP_DEBUG=0 php bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Préparer le cache Symfony
+        run: |
+          APP_ENV=prod APP_DEBUG=0 php bin/console cache:clear
+
+      - name: Nettoyer les fichiers de test avant upload
         run: |
           rm -f var/test.db
           rm -f .env.test
-          rm -rf var/cache/*
+          rm -rf var/cache/test
 
       - name: Installer lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
@@ -80,8 +89,9 @@ jobs:
           mirror -R --verbose \
             --exclude .git/ \
             --exclude .github/ \
-            --exclude .env \
             --exclude .env.test \
+            --exclude .env.local \
+            --exclude .env.local.php \
             --exclude var/cache/ \
             --exclude var/log/ \
             --exclude var/test.db \
@@ -103,4 +113,16 @@ jobs:
             curl -I --fail --max-time 20 "$APP_URL"
           else
             echo "APP_URL non défini, vérification post-déploiement ignorée."
+          fi
+
+      - name: Vérifier que l'API répond après déploiement
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -n "$APP_URL" ]; then
+            curl --fail --max-time 20 "$APP_URL/api"
+            curl --fail --max-time 20 "$APP_URL/api/products"
+            curl --fail --max-time 20 "$APP_URL/api/categories"
+          else
+            echo "APP_URL non défini, vérification API ignorée."
           fi
