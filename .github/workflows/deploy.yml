@@ -52,6 +52,22 @@ jobs:
             tests/Repository \
             tests/Unit
 
+      # Optionnel :
+      # Les tests E2E Panther sont plus lourds.
+      # Active ce bloc seulement si tu veux les lancer dans GitHub Actions.
+      #
+      # - name: Installer Google Chrome
+      #   uses: browser-actions/setup-chrome@v1
+      #
+      # - name: Installer ChromeDriver
+      #   run: |
+      #     composer require --dev dbrekelmans/bdi
+      #     vendor/bin/bdi detect drivers
+      #
+      # - name: Lancer les tests E2E navigateur
+      #   run: |
+      #     PANTHER_BROWSER=chrome php bin/phpunit tests/E2E
+
       - name: Créer le fichier .env.local de production
         run: |
           echo "APP_ENV=prod" > .env.local
@@ -99,6 +115,7 @@ jobs:
         run: |
           rm -f var/test.db
           rm -f .env.test
+          rm -rf var/cache/test
 
       - name: Installer lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
@@ -113,6 +130,9 @@ jobs:
             --exclude .github/ \
             --exclude .env \
             --exclude .env.test \
+            --exclude .env.local.php \
+            --exclude var/cache/ \
+            --exclude var/log/ \
             --exclude var/test.db \
             --exclude node_modules/ \
             --exclude tests/ \
