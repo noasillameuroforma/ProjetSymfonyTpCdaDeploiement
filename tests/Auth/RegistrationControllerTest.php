@@ -29,6 +29,10 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
         $this->assertSelectorExists('form');
+        $this->assertSelectorExists('[name="registration_form[FullName]"]');
+        $this->assertSelectorExists('[name="registration_form[email]"]');
+        $this->assertSelectorExists('[name="registration_form[plainPassword]"]');
+        $this->assertSelectorExists('[name="registration_form[agreeTerms]"]');
     }
 
     public function testRegisterCreatesNewUser(): void
@@ -39,26 +43,14 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form')->form();
-
-        $formData = [
+        $form = $crawler->filter('form')->form([
+            'registration_form[FullName]' => 'User Register Test',
             'registration_form[email]' => $email,
             'registration_form[plainPassword]' => 'password123',
-        ];
+            'registration_form[agreeTerms]' => true,
+        ]);
 
-        if ($crawler->filter('[name="registration_form[agreeTerms]"]')->count() > 0) {
-            $formData['registration_form[agreeTerms]'] = true;
-        }
-
-        if ($crawler->filter('[name="registration_form[fullName]"]')->count() > 0) {
-            $formData['registration_form[fullName]'] = 'User Register Test';
-        }
-
-        if ($crawler->filter('[name="registration_form[FullName]"]')->count() > 0) {
-            $formData['registration_form[FullName]'] = 'User Register Test';
-        }
-
-        $this->client->submit($form, $formData);
+        $this->client->submit($form);
 
         $user = $this->userRepository->findOneBy([
             'email' => $email,
@@ -66,6 +58,7 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertNotNull($user);
         $this->assertSame($email, $user->getEmail());
+        $this->assertSame('User Register Test', $user->getFullName());
         $this->assertNotSame('password123', $user->getPassword());
         $this->assertContains('ROLE_USER', $user->getRoles());
     }
@@ -78,48 +71,61 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form')->form();
-
-        $formData = [
+        $form = $crawler->filter('form')->form([
+            'registration_form[FullName]' => '',
             'registration_form[email]' => '',
             'registration_form[plainPassword]' => '',
-        ];
+            'registration_form[agreeTerms]' => false,
+        ]);
 
-        if ($crawler->filter('[name="registration_form[agreeTerms]"]')->count() > 0) {
-            $formData['registration_form[agreeTerms]'] = false;
-        }
-
-        if ($crawler->filter('[name="registration_form[fullName]"]')->count() > 0) {
-            $formData['registration_form[fullName]'] = '';
-        }
-
-        if ($crawler->filter('[name="registration_form[FullName]"]')->count() > 0) {
-            $formData['registration_form[FullName]'] = '';
-        }
-
-        $this->client->submit($form, $formData);
+        $this->client->submit($form);
 
         $user = $this->userRepository->findOneBy([
             'email' => $email,
         ]);
 
         $this->assertNull($user);
+        $this->assertSelectorExists('form');
     }
 
-    public function testRegisterPageContainsEmailAndPasswordFields(): void
+    public function testRegisterWithDuplicateEmailDoesNotCreateSecondUser(): void
     {
+        $email = 'duplicate-register'.uniqid().'@example.com';
+
+        $this->createUserDirectly($email);
+
         $crawler = $this->client->request('GET', '/register');
 
         $this->assertResponseIsSuccessful();
 
-        $this->assertGreaterThan(
-            0,
-            $crawler->filter('[name="registration_form[email]"]')->count()
-        );
+        $form = $crawler->filter('form')->form([
+            'registration_form[FullName]' => 'Duplicate User',
+            'registration_form[email]' => $email,
+            'registration_form[plainPassword]' => 'password123',
+            'registration_form[agreeTerms]' => true,
+        ]);
 
-        $this->assertGreaterThan(
-            0,
-            $crawler->filter('[name="registration_form[plainPassword]"]')->count()
-        );
+        $this->client->submit($form);
+
+        $users = $this->userRepository->findBy([
+            'email' => $email,
+        ]);
+
+        $this->assertCount(1, $users);
+    }
+
+    private function createUserDirectly(string $email): void
+    {
+        $userClass = $this->userRepository->getClassName();
+        $user = new $userClass();
+
+        $user
+            ->setEmail($email)
+            ->setFullName('Existing User')
+            ->setPassword('hashed_password')
+            ->setRoles(['ROLE_USER']);
+
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
     }
 }
