@@ -52,60 +52,42 @@ jobs:
             tests/Repository \
             tests/Unit
 
-      - name: Debug DATABASE_URL
+      - name: Construire et vérifier DATABASE_URL
         env:
-          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
+          DB_HOST: "${{ secrets.DB_HOST }}"
+          DB_PORT: "${{ secrets.DB_PORT }}"
+          DB_NAME: "${{ secrets.DB_NAME }}"
+          DB_USER: "${{ secrets.DB_USER }}"
+          DB_PASSWORD: "${{ secrets.DB_PASSWORD }}"
         run: |
-          echo "Longueur DATABASE_URL : ${#DATABASE_URL}"
-
-          if [ -z "$DATABASE_URL" ]; then
-            echo "ERREUR : le secret DATABASE_URL est vide ou introuvable."
-            echo "Vérifie que DATABASE_URL est bien dans Repository secrets du bon repo."
+          if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+            echo "ERREUR : un ou plusieurs secrets DB_* sont vides."
+            echo "Vérifie DB_HOST, DB_PORT, DB_NAME, DB_USER et DB_PASSWORD dans GitHub Secrets."
             exit 1
           fi
 
-          echo "DATABASE_URL brute masquée par GitHub : $DATABASE_URL"
+          ENCODED_PASSWORD=$(php -r 'echo rawurlencode(getenv("DB_PASSWORD"));')
 
-          echo "DATABASE_URL masquée manuellement :"
-          php -r '
-          $url = getenv("DATABASE_URL");
+          # Important pour Symfony :
+          # si le mot de passe contient *) alors rawurlencode donne %2A%29
+          # Symfony interprète %2A% comme un paramètre, donc on double les %
+          # %2A%29 devient %%2A%%29
+          SYMFONY_PASSWORD="${ENCODED_PASSWORD//%/%%}"
 
-          echo preg_replace(
-              "#^(mysql://[^:]+:).+(@[^/]+/).+$#",
-              "$1***$2***",
-              $url
-          ).PHP_EOL;
-          '
+          DATABASE_URL_VALUE="mysql://$DB_USER:$SYMFONY_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME?serverVersion=8.0.32&charset=utf8mb4"
 
-          echo "Analyse parse_url :"
-          php -r '
-          $databaseUrl = getenv("DATABASE_URL");
-          $url = parse_url($databaseUrl);
+          echo "DATABASE_URL=$DATABASE_URL_VALUE" >> "$GITHUB_ENV"
 
-          if (!$url) {
-              fwrite(STDERR, "ERREUR : parse_url a échoué.\n");
-              exit(1);
-          }
-
-          echo "scheme = ".($url["scheme"] ?? "absent").PHP_EOL;
-          echo "user   = ".($url["user"] ?? "absent").PHP_EOL;
-          echo "host   = ".($url["host"] ?? "absent").PHP_EOL;
-          echo "port   = ".($url["port"] ?? "absent").PHP_EOL;
-          echo "path   = ".($url["path"] ?? "absent").PHP_EOL;
-
-          if (!isset($url["host"])) {
-              fwrite(STDERR, "ERREUR : DATABASE_URL est mal formée ou le host est introuvable.\n");
-              exit(1);
-          }
-
-          echo "Host MySQL utilisé : ".$url["host"].PHP_EOL;
-          '
+          echo "Host MySQL utilisé : $DB_HOST"
+          echo "Port MySQL utilisé : $DB_PORT"
+          echo "Base utilisée : $DB_NAME"
+          echo "User utilisé : $DB_USER"
+          echo "Mot de passe encodé et protégé pour Symfony."
 
       - name: Créer le fichier .env Symfony de production
         env:
           APP_SECRET: "${{ secrets.APP_SECRET }}"
           APP_URL: "${{ secrets.APP_URL }}"
-          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           echo "APP_ENV=prod" > .env
           echo "APP_DEBUG=0" >> .env
@@ -118,14 +100,10 @@ jobs:
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
       - name: Exécuter les migrations Doctrine sur la BDD IONOS
-        env:
-          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL" php bin/console doctrine:migrations:migrate --no-interaction
 
       - name: Préparer le cache Symfony
-        env:
-          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL" php bin/console cache:clear
 
