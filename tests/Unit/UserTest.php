@@ -34,3 +34,6 @@ class UserTest extends TestCase
         $this->assertSame(['ROLE_USER'], $user->getRoles());
     }
 }
+
+
+
