@@ -38,7 +38,7 @@ jobs:
       - name: Préparer la base de test
         run: |
           mkdir -p var
-          php bin/console doctrine:database:create --env=test --if-not-exists
+          rm -f var/test.db
           php bin/console doctrine:schema:update --force --env=test
 
       - name: Lancer les tests principaux
