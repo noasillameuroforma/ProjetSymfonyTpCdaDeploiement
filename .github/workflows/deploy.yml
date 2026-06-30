@@ -52,22 +52,49 @@ jobs:
             tests/Repository \
             tests/Unit
 
-      - name: Vérifier le secret DATABASE_URL
+      - name: Debug DATABASE_URL
         env:
           DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
+          echo "Longueur DATABASE_URL : ${#DATABASE_URL}"
+
           if [ -z "$DATABASE_URL" ]; then
             echo "ERREUR : le secret DATABASE_URL est vide ou introuvable."
+            echo "Vérifie que DATABASE_URL est bien dans Repository secrets du bon repo."
             exit 1
           fi
 
+          echo "DATABASE_URL brute masquée par GitHub : $DATABASE_URL"
+
+          echo "DATABASE_URL masquée manuellement :"
+          php -r '
+          $url = getenv("DATABASE_URL");
+
+          echo preg_replace(
+              "#^(mysql://[^:]+:).+(@[^/]+/).+$#",
+              "$1***$2***",
+              $url
+          ).PHP_EOL;
+          '
+
+          echo "Analyse parse_url :"
           php -r '
           $databaseUrl = getenv("DATABASE_URL");
           $url = parse_url($databaseUrl);
 
-          if (!$url || !isset($url["host"])) {
-              fwrite(STDERR, "ERREUR : DATABASE_URL est mal formée.\n");
-              fwrite(STDERR, "Elle doit ressembler à : mysql://user:password@host:3306/dbname?serverVersion=8.0.32&charset=utf8mb4\n");
+          if (!$url) {
+              fwrite(STDERR, "ERREUR : parse_url a échoué.\n");
+              exit(1);
+          }
+
+          echo "scheme = ".($url["scheme"] ?? "absent").PHP_EOL;
+          echo "user   = ".($url["user"] ?? "absent").PHP_EOL;
+          echo "host   = ".($url["host"] ?? "absent").PHP_EOL;
+          echo "port   = ".($url["port"] ?? "absent").PHP_EOL;
+          echo "path   = ".($url["path"] ?? "absent").PHP_EOL;
+
+          if (!isset($url["host"])) {
+              fwrite(STDERR, "ERREUR : DATABASE_URL est mal formée ou le host est introuvable.\n");
               exit(1);
           }
 

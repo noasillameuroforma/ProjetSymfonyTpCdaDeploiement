@@ -46,12 +46,13 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('/tp_cda/tp_cda_prof', $workflow);
     }
 
-    public function testWorkflowChecksDatabaseUrlSecret(): void
+    public function testWorkflowDebugsDatabaseUrlSecret(): void
     {
         $workflow = $this->getWorkflowContent();
 
-        $this->assertStringContainsString('Vérifier le secret DATABASE_URL', $workflow);
-        $this->assertStringContainsString('DATABASE_URL', $workflow);
+        $this->assertStringContainsString('Debug DATABASE_URL', $workflow);
+        $this->assertStringContainsString('Longueur DATABASE_URL', $workflow);
+        $this->assertStringContainsString('DATABASE_URL brute masquée par GitHub', $workflow);
         $this->assertStringContainsString('parse_url', $workflow);
         $this->assertStringContainsString('Host MySQL utilisé', $workflow);
     }
