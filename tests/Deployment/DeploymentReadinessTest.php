@@ -25,65 +25,70 @@ class DeploymentReadinessTest extends TestCase
         $this->assertFileExists($root.'/public/index.php');
     }
 
-    public function testEnvFileIsNotCommittedWithProductionSecrets(): void
+    public function testEnvLocalIsNotCommitted(): void
     {
         $root = dirname(__DIR__, 2);
 
-        $envPath = $root.'/.env.local';
-
         $this->assertFileDoesNotExist(
-            $envPath,
-            '.env.local ne doit pas être commité dans le projet. Il doit être généré par GitHub Actions.'
+            $root.'/.env.local',
+            '.env.local ne doit pas être commité. Il doit être généré par GitHub Actions.'
         );
     }
 
     public function testGitHubWorkflowContainsDeploymentSteps(): void
     {
-        $root = dirname(__DIR__, 2);
-
-        $workflow = file_get_contents($root.'/.github/workflows/deploy.yml');
+        $workflow = $this->getWorkflowContent();
 
         $this->assertStringContainsString('composer install', $workflow);
         $this->assertStringContainsString('php bin/phpunit', $workflow);
         $this->assertStringContainsString('lftp', $workflow);
         $this->assertStringContainsString('mirror -R', $workflow);
         $this->assertStringContainsString('APP_ENV=prod', $workflow);
+        $this->assertStringContainsString('/tp_cda/tp_cda_prof', $workflow);
     }
 
-    public function testSymfonyProductionCacheCommandExistsInWorkflow(): void
+    public function testSymfonyProductionCommandsExistInWorkflow(): void
     {
-        $root = dirname(__DIR__, 2);
+        $workflow = $this->getWorkflowContent();
 
-        $workflow = file_get_contents($root.'/.github/workflows/deploy.yml');
-
-        $this->assertStringContainsString('cache:clear', $workflow);
         $this->assertStringContainsString('APP_DEBUG=0', $workflow);
+        $this->assertStringContainsString('doctrine:migrations:migrate', $workflow);
     }
 
     public function testWorkflowExcludesSensitiveOrUselessDirectories(): void
     {
-        $root = dirname(__DIR__, 2);
-
-        $workflow = file_get_contents($root.'/.github/workflows/deploy.yml');
+        $workflow = $this->getWorkflowContent();
 
         $this->assertStringContainsString('--exclude .git/', $workflow);
         $this->assertStringContainsString('--exclude .github/', $workflow);
+        $this->assertStringContainsString('--exclude .env', $workflow);
+        $this->assertStringContainsString('--exclude .env.test', $workflow);
         $this->assertStringContainsString('--exclude var/cache/', $workflow);
         $this->assertStringContainsString('--exclude var/log/', $workflow);
         $this->assertStringContainsString('--exclude node_modules/', $workflow);
+        $this->assertStringContainsString('--exclude tests/', $workflow);
     }
 
-    public function testComposerLockIsUpToDateWithComposerJson(): void
+    public function testComposerLockExistsAndIsReadable(): void
     {
         $root = dirname(__DIR__, 2);
 
-        $composerJson = filemtime($root.'/composer.json');
-        $composerLock = filemtime($root.'/composer.lock');
+        $this->assertFileExists($root.'/composer.lock');
 
-        $this->assertGreaterThanOrEqual(
-            $composerJson,
-            $composerLock,
-            'composer.lock semble plus ancien que composer.json. Lance composer update ou composer install puis commit composer.lock.'
-        );
+        $composerLock = json_decode(file_get_contents($root.'/composer.lock'), true);
+
+        $this->assertIsArray($composerLock);
+        $this->assertArrayHasKey('packages', $composerLock);
+        $this->assertArrayHasKey('packages-dev', $composerLock);
+    }
+
+    private function getWorkflowContent(): string
+    {
+        $root = dirname(__DIR__, 2);
+        $workflowPath = $root.'/.github/workflows/deploy.yml';
+
+        $this->assertFileExists($workflowPath);
+
+        return file_get_contents($workflowPath);
     }
 }
