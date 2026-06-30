@@ -72,7 +72,7 @@ jobs:
           echo "APP_ENV=prod" > .env.local
           echo "APP_DEBUG=0" >> .env.local
           echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env.local
-          echo "DATABASE_URL=mysql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}?serverVersion=8.0&charset=utf8mb4" >> .env.local
+          echo 'DATABASE_URL="${{ secrets.DATABASE_URL }}"' >> .env.local
 
       - name: Installer les dépendances Symfony en production
         run: |
