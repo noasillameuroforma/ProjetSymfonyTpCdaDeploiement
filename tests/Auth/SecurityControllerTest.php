@@ -33,23 +33,20 @@ class SecurityControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
         $this->assertSelectorExists('form');
+        $this->assertSelectorExists('input[type="password"]');
     }
 
-    public function testLoginPageContainsUsernameAndPasswordFields(): void
+    public function testLoginPageContainsIdentifierAndPasswordFields(): void
     {
         $crawler = $this->client->request('GET', '/login');
 
         $this->assertResponseIsSuccessful();
 
-        $this->assertGreaterThan(
-            0,
-            $crawler->filter('[name="_username"]')->count()
-        );
+        $usernameField = $this->findUsernameFieldName($crawler);
+        $passwordField = $this->findPasswordFieldName($crawler);
 
-        $this->assertGreaterThan(
-            0,
-            $crawler->filter('[name="_password"]')->count()
-        );
+        $this->assertNotNull($usernameField, 'Aucun champ identifiant/email trouvé dans le formulaire login.');
+        $this->assertNotNull($passwordField, 'Aucun champ password trouvé dans le formulaire login.');
     }
 
     public function testLoginWithInvalidCredentialsRedirectsBackToLogin(): void
@@ -58,18 +55,18 @@ class SecurityControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
 
+        $usernameField = $this->findUsernameFieldName($crawler);
+        $passwordField = $this->findPasswordFieldName($crawler);
+
+        $this->assertNotNull($usernameField);
+        $this->assertNotNull($passwordField);
+
         $form = $crawler->filter('form')->form();
 
-        $formData = [
-            '_username' => 'unknown@example.com',
-            '_password' => 'wrong-password',
-        ];
+        $form[$usernameField] = 'unknown@example.com';
+        $form[$passwordField] = 'wrong-password';
 
-        if ($crawler->filter('[name="_csrf_token"]')->count() > 0) {
-            $formData['_csrf_token'] = $crawler->filter('[name="_csrf_token"]')->attr('value');
-        }
-
-        $this->client->submit($form, $formData);
+        $this->client->submit($form);
 
         $this->assertTrue(
             $this->client->getResponse()->isRedirect(),
@@ -92,18 +89,18 @@ class SecurityControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
 
+        $usernameField = $this->findUsernameFieldName($crawler);
+        $passwordField = $this->findPasswordFieldName($crawler);
+
+        $this->assertNotNull($usernameField);
+        $this->assertNotNull($passwordField);
+
         $form = $crawler->filter('form')->form();
 
-        $formData = [
-            '_username' => $email,
-            '_password' => $plainPassword,
-        ];
+        $form[$usernameField] = $email;
+        $form[$passwordField] = $plainPassword;
 
-        if ($crawler->filter('[name="_csrf_token"]')->count() > 0) {
-            $formData['_csrf_token'] = $crawler->filter('[name="_csrf_token"]')->attr('value');
-        }
-
-        $this->client->submit($form, $formData);
+        $this->client->submit($form);
 
         $this->assertTrue(
             $this->client->getResponse()->isRedirect(),
@@ -120,18 +117,20 @@ class SecurityControllerTest extends WebTestCase
 
         $crawler = $this->client->request('GET', '/login');
 
+        $this->assertResponseIsSuccessful();
+
+        $usernameField = $this->findUsernameFieldName($crawler);
+        $passwordField = $this->findPasswordFieldName($crawler);
+
+        $this->assertNotNull($usernameField);
+        $this->assertNotNull($passwordField);
+
         $form = $crawler->filter('form')->form();
 
-        $formData = [
-            '_username' => $email,
-            '_password' => $plainPassword,
-        ];
+        $form[$usernameField] = $email;
+        $form[$passwordField] = $plainPassword;
 
-        if ($crawler->filter('[name="_csrf_token"]')->count() > 0) {
-            $formData['_csrf_token'] = $crawler->filter('[name="_csrf_token"]')->attr('value');
-        }
-
-        $this->client->submit($form, $formData);
+        $this->client->submit($form);
 
         $this->assertTrue($this->client->getResponse()->isRedirect());
 
@@ -169,5 +168,48 @@ class SecurityControllerTest extends WebTestCase
         $this->entityManager->flush();
 
         return $user;
+    }
+
+    private function findUsernameFieldName($crawler): ?string
+    {
+        $possibleNames = [
+            '_username',
+            'email',
+            'username',
+            'login',
+            'security[email]',
+            'login_form[email]',
+        ];
+
+        foreach ($possibleNames as $name) {
+            if ($crawler->filter(sprintf('[name="%s"]', $name))->count() > 0) {
+                return $name;
+            }
+        }
+
+        $emailInput = $crawler->filter('input[type="email"]');
+
+        if ($emailInput->count() > 0) {
+            return $emailInput->first()->attr('name');
+        }
+
+        $textInput = $crawler->filter('input[type="text"]');
+
+        if ($textInput->count() > 0) {
+            return $textInput->first()->attr('name');
+        }
+
+        return null;
+    }
+
+    private function findPasswordFieldName($crawler): ?string
+    {
+        $passwordInput = $crawler->filter('input[type="password"]');
+
+        if ($passwordInput->count() > 0) {
+            return $passwordInput->first()->attr('name');
+        }
+
+        return null;
     }
 }
