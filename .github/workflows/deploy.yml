@@ -52,6 +52,28 @@ jobs:
             tests/Repository \
             tests/Unit
 
+      - name: Vérifier le secret DATABASE_URL
+        env:
+          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "ERREUR : le secret DATABASE_URL est vide ou introuvable."
+            exit 1
+          fi
+
+          php -r '
+          $databaseUrl = getenv("DATABASE_URL");
+          $url = parse_url($databaseUrl);
+
+          if (!$url || !isset($url["host"])) {
+              fwrite(STDERR, "ERREUR : DATABASE_URL est mal formée.\n");
+              fwrite(STDERR, "Elle doit ressembler à : mysql://user:password@host:3306/dbname?serverVersion=8.0.32&charset=utf8mb4\n");
+              exit(1);
+          }
+
+          echo "Host MySQL utilisé : ".$url["host"].PHP_EOL;
+          '
+
       - name: Créer le fichier .env Symfony de production
         env:
           APP_SECRET: "${{ secrets.APP_SECRET }}"
@@ -63,15 +85,6 @@ jobs:
           echo "APP_SECRET=$APP_SECRET" >> .env
           echo "DEFAULT_URI=$APP_URL" >> .env
           echo "DATABASE_URL=\"$DATABASE_URL\"" >> .env
-
-      - name: Vérifier le host MySQL utilisé
-        env:
-          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
-        run: |
-          php -r '
-          $url = parse_url(getenv("DATABASE_URL"));
-          echo "Host MySQL utilisé : ".($url["host"] ?? "HOST INTROUVABLE").PHP_EOL;
-          '
 
       - name: Installer les dépendances Symfony en production
         run: |

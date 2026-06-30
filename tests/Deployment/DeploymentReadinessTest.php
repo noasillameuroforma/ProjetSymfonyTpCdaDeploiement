@@ -46,6 +46,16 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('/tp_cda/tp_cda_prof', $workflow);
     }
 
+    public function testWorkflowChecksDatabaseUrlSecret(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('Vérifier le secret DATABASE_URL', $workflow);
+        $this->assertStringContainsString('DATABASE_URL', $workflow);
+        $this->assertStringContainsString('parse_url', $workflow);
+        $this->assertStringContainsString('Host MySQL utilisé', $workflow);
+    }
+
     public function testWorkflowCreatesSymfonyProductionEnvFile(): void
     {
         $workflow = $this->getWorkflowContent();
@@ -53,18 +63,10 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('APP_ENV=prod', $workflow);
         $this->assertStringContainsString('APP_DEBUG=0', $workflow);
         $this->assertStringContainsString('APP_SECRET', $workflow);
+        $this->assertStringContainsString('DEFAULT_URI', $workflow);
         $this->assertStringContainsString('DATABASE_URL', $workflow);
         $this->assertStringContainsString('echo "DATABASE_URL=\"$DATABASE_URL\"" >> .env', $workflow);
         $this->assertStringContainsString('> .env', $workflow);
-    }
-
-    public function testWorkflowChecksDatabaseUrlHost(): void
-    {
-        $workflow = $this->getWorkflowContent();
-
-        $this->assertStringContainsString('Vérifier le host MySQL utilisé', $workflow);
-        $this->assertStringContainsString('parse_url', $workflow);
-        $this->assertStringContainsString('Host MySQL utilisé', $workflow);
     }
 
     public function testWorkflowRunsDoctrineMigrations(): void
