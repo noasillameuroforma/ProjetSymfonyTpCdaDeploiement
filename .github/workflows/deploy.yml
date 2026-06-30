@@ -54,9 +54,9 @@ jobs:
 
       - name: Créer le fichier .env Symfony de production
         env:
-          APP_SECRET: ${{ secrets.APP_SECRET }}
-          APP_URL: ${{ secrets.APP_URL }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_SECRET: "${{ secrets.APP_SECRET }}"
+          APP_URL: "${{ secrets.APP_URL }}"
+          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           echo "APP_ENV=prod" > .env
           echo "APP_DEBUG=0" >> .env
@@ -66,7 +66,7 @@ jobs:
 
       - name: Vérifier le host MySQL utilisé
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           php -r '
           $url = parse_url(getenv("DATABASE_URL"));
@@ -79,13 +79,13 @@ jobs:
 
       - name: Exécuter les migrations Doctrine sur la BDD IONOS
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL" php bin/console doctrine:migrations:migrate --no-interaction
 
       - name: Préparer le cache Symfony
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: "${{ secrets.DATABASE_URL }}"
         run: |
           APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL" php bin/console cache:clear
 
@@ -123,7 +123,7 @@ jobs:
 
       - name: Vérifier que le site répond après déploiement
         env:
-          APP_URL: ${{ secrets.APP_URL }}
+          APP_URL: "${{ secrets.APP_URL }}"
         run: |
           if [ -n "$APP_URL" ]; then
             sleep 5
@@ -134,7 +134,7 @@ jobs:
 
       - name: Vérifier que l'API répond après déploiement
         env:
-          APP_URL: ${{ secrets.APP_URL }}
+          APP_URL: "${{ secrets.APP_URL }}"
         run: |
           if [ -n "$APP_URL" ]; then
             curl --fail --max-time 20 "$APP_URL/api"

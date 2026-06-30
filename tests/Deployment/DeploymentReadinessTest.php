@@ -53,8 +53,18 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('APP_ENV=prod', $workflow);
         $this->assertStringContainsString('APP_DEBUG=0', $workflow);
         $this->assertStringContainsString('APP_SECRET', $workflow);
-        $this->assertStringContainsString('DATABASE_URL="${{ secrets.DATABASE_URL }}"', $workflow);
+        $this->assertStringContainsString('DATABASE_URL', $workflow);
+        $this->assertStringContainsString('echo "DATABASE_URL=\"$DATABASE_URL\"" >> .env', $workflow);
         $this->assertStringContainsString('> .env', $workflow);
+    }
+
+    public function testWorkflowChecksDatabaseUrlHost(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('Vérifier le host MySQL utilisé', $workflow);
+        $this->assertStringContainsString('parse_url', $workflow);
+        $this->assertStringContainsString('Host MySQL utilisé', $workflow);
     }
 
     public function testWorkflowRunsDoctrineMigrations(): void
@@ -62,7 +72,7 @@ class DeploymentReadinessTest extends TestCase
         $workflow = $this->getWorkflowContent();
 
         $this->assertStringContainsString('doctrine:migrations:migrate', $workflow);
-        $this->assertStringContainsString('APP_ENV=prod APP_DEBUG=0', $workflow);
+        $this->assertStringContainsString('APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL"', $workflow);
     }
 
     public function testWorkflowClearsSymfonyProductionCache(): void
@@ -70,6 +80,7 @@ class DeploymentReadinessTest extends TestCase
         $workflow = $this->getWorkflowContent();
 
         $this->assertStringContainsString('cache:clear', $workflow);
+        $this->assertStringContainsString('APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL"', $workflow);
     }
 
     public function testWorkflowInstallsProductionDependenciesWithoutComposerScripts(): void
