@@ -53,7 +53,7 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('APP_ENV=prod', $workflow);
         $this->assertStringContainsString('APP_DEBUG=0', $workflow);
         $this->assertStringContainsString('APP_SECRET', $workflow);
-        $this->assertStringContainsString('DATABASE_URL', $workflow);
+        $this->assertStringContainsString('DATABASE_URL="${{ secrets.DATABASE_URL }}"', $workflow);
         $this->assertStringContainsString('> .env', $workflow);
     }
 

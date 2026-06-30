@@ -58,7 +58,7 @@ jobs:
           echo "APP_DEBUG=0" >> .env
           echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env
           echo "DEFAULT_URI=${{ secrets.APP_URL }}" >> .env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo 'DATABASE_URL="${{ secrets.DATABASE_URL }}"' >> .env
 
       - name: Installer les dépendances Symfony en production
         run: |
