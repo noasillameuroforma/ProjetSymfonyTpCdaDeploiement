@@ -1,0 +1,87 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block body %}
+    <main class="container mt-5">
+        <section class="mb-5">
+            <h1 class="mb-3">Bienvenue sur notre boutique</h1>
+            <p class="lead">
+                Découvrez nos produits, nos catégories et gérez vos commandes facilement.
+            </p>
+
+            <div class="mt-4">
+                <a href="{{ path('app_product_index') }}" class="btn btn-primary">
+                    Voir les produits
+                </a>
+
+                <a href="{{ path('app_category_index') }}" class="btn btn-outline-primary">
+                    Voir les catégories
+                </a>
+            </div>
+        </section>
+
+        <section class="mb-5">
+            <h2>Catégories</h2>
+
+            {% if categories is not empty %}
+                <div class="row">
+                    {% for category in categories %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h3 class="h5">{{ category.name }}</h3>
+                                    <p class="text-muted">{{ category.slug }}</p>
+
+                                    <a href="{{ path('app_category_show', {'id': category.id}) }}" class="btn btn-sm btn-outline-secondary">
+                                        Voir
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>Aucune catégorie disponible pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section>
+            <h2>Produits</h2>
+
+            {% if products is not empty %}
+                <div class="row">
+                    {% for product in products %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h3 class="h5">{{ product.name }}</h3>
+
+                                    {% if product.category %}
+                                        <p class="text-muted">
+                                            Catégorie : {{ product.category.name }}
+                                        </p>
+                                    {% endif %}
+
+                                    <p>
+                                        {{ product.description ?: 'Aucune description.' }}
+                                    </p>
+
+                                    <p class="fw-bold">
+                                        {{ product.price }} €
+                                    </p>
+
+                                    <a href="{{ path('app_product_show', {'id': product.id}) }}" class="btn btn-sm btn-outline-secondary">
+                                        Voir
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>Aucun produit disponible pour le moment.</p>
+            {% endif %}
+        </section>
+    </main>
+{% endblock %}

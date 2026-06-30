@@ -1,0 +1,136 @@
+name: Deploy Symfony to IONOS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, intl, pdo_mysql, sqlite3, pdo_sqlite
+          tools: composer
+
+      - name: Installer les dépendances avec dev
+        run: |
+          composer install --no-interaction --prefer-dist
+
+      - name: Créer le fichier .env.test
+        run: |
+          echo "APP_ENV=test" > .env.test
+          echo "APP_DEBUG=1" >> .env.test
+          echo "KERNEL_CLASS='App\Kernel'" >> .env.test
+          echo "APP_SECRET='\$ecretf0rt3st'" >> .env.test
+          echo 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/test.db"' >> .env.test
+          echo "PANTHER_APP_ENV=panther" >> .env.test
+          echo "PANTHER_ERROR_SCREENSHOT_DIR=./var/error-screenshots" >> .env.test
+          echo "PANTHER_DEVTOOLS=0" >> .env.test
+
+      - name: Préparer la base de test
+        run: |
+          mkdir -p var
+          php bin/console doctrine:database:create --env=test --if-not-exists
+          php bin/console doctrine:schema:update --force --env=test
+
+      - name: Lancer les tests principaux
+        run: |
+          php bin/phpunit \
+            tests/Api \
+            tests/Auth \
+            tests/Controller \
+            tests/Deployment \
+            tests/Functional \
+            tests/Repository \
+            tests/Unit
+
+      # Optionnel : active cette partie seulement si tes tests Panther sont stables sur GitHub Actions.
+      # Les tests E2E navigateur sont plus lourds que les autres.
+      #
+      # - name: Installer Google Chrome
+      #   uses: browser-actions/setup-chrome@v1
+      #
+      # - name: Installer ChromeDriver
+      #   run: |
+      #     composer require --dev dbrekelmans/bdi
+      #     vendor/bin/bdi detect drivers
+      #
+      # - name: Lancer les tests E2E navigateur
+      #   run: |
+      #     PANTHER_BROWSER=chrome php bin/phpunit tests/E2E
+
+      - name: Créer le fichier .env.local de production
+        run: |
+          echo "APP_ENV=prod" > .env.local
+          echo "APP_DEBUG=0" >> .env.local
+          echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env.local
+          echo "DATABASE_URL=mysql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}?serverVersion=8.0&charset=utf8mb4" >> .env.local
+
+      - name: Installer les dépendances Symfony en production
+        run: |
+          composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Préparer le cache Symfony
+        run: |
+          APP_ENV=prod APP_DEBUG=0 php bin/console cache:clear
+
+      - name: Exécuter les migrations Doctrine
+        run: |
+          APP_ENV=prod APP_DEBUG=0 php bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Installer lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Envoyer sur IONOS en SFTP
+        run: |
+          lftp -u "${{ secrets.SFTP_USER }}","${{ secrets.SFTP_PASSWORD }}" sftp://${{ secrets.SFTP_HOST }} <<EOF
+          set sftp:auto-confirm yes
+          cd /tp_cda/tp_cda_prof
+          mirror -R --verbose \
+            --exclude .git/ \
+            --exclude .github/ \
+            --exclude .env \
+            --exclude .env.test \
+            --exclude .env.local.php \
+            --exclude var/cache/ \
+            --exclude var/log/ \
+            --exclude var/test.db \
+            --exclude node_modules/ \
+            --exclude tests/ \
+            --exclude .phpunit.cache/ \
+            --exclude phpunit.xml.dist \
+            --exclude README.md \
+            ./ ./
+          bye
+          EOF
+
+      - name: Vérifier que le site répond après déploiement
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -n "$APP_URL" ]; then
+            sleep 5
+            curl -I --fail --max-time 20 "$APP_URL"
+          else
+            echo "APP_URL non défini, vérification post-déploiement ignorée."
+          fi
+
+      - name: Vérifier que l'API répond après déploiement
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -n "$APP_URL" ]; then
+            curl --fail --max-time 20 "$APP_URL/api"
+            curl --fail --max-time 20 "$APP_URL/api/products"
+            curl --fail --max-time 20 "$APP_URL/api/categories"
+          else
+            echo "APP_URL non défini, vérification API ignorée."
+          fi
