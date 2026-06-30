@@ -77,3 +77,4 @@ class ProductRepositoryTest extends KernelTestCase
         $this->assertContainsOnlyInstancesOf(Product::class, $products);
     }
 }
+
