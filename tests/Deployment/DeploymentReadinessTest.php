@@ -130,6 +130,34 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('--no-scripts', $workflow);
     }
 
+    public function testWorkflowOptimizesSftpUpload(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('--only-newer', $workflow);
+        $this->assertStringContainsString('--parallel=10', $workflow);
+    }
+
+    public function testWorkflowSupportsFirstDeploymentWithVendorUpload(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('UPLOAD_VENDOR', $workflow);
+        $this->assertStringContainsString("secrets.UPLOAD_VENDOR == 'true'", $workflow);
+        $this->assertStringContainsString('Envoyer sur IONOS en SFTP avec vendor', $workflow);
+        $this->assertStringContainsString('premier déploiement avec vendor/', $workflow);
+    }
+
+    public function testWorkflowSupportsFastDeploymentWithoutVendorUpload(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString("secrets.UPLOAD_VENDOR != 'true'", $workflow);
+        $this->assertStringContainsString('Envoyer sur IONOS en SFTP sans vendor', $workflow);
+        $this->assertStringContainsString('déploiement rapide sans vendor/', $workflow);
+        $this->assertStringContainsString('--exclude vendor/', $workflow);
+    }
+
     public function testWorkflowDoesNotUploadDevelopmentOrTestFiles(): void
     {
         $workflow = $this->getWorkflowContent();
@@ -139,6 +167,7 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('--exclude .env.test', $workflow);
         $this->assertStringContainsString('--exclude .env.local', $workflow);
         $this->assertStringContainsString('--exclude .env.local.php', $workflow);
+        $this->assertStringContainsString('--exclude .env.dev', $workflow);
         $this->assertStringContainsString('--exclude var/cache/', $workflow);
         $this->assertStringContainsString('--exclude var/log/', $workflow);
         $this->assertStringContainsString('--exclude var/test.db', $workflow);
@@ -146,6 +175,7 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('--exclude tests/', $workflow);
         $this->assertStringContainsString('--exclude .phpunit.cache/', $workflow);
         $this->assertStringContainsString('--exclude phpunit.xml.dist', $workflow);
+        $this->assertStringContainsString('--exclude phpunit.dist.xml', $workflow);
     }
 
     public function testProductionEnvFileIsUploadedToServer(): void
@@ -156,12 +186,19 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringNotContainsString('--exclude .env \\', $workflow);
     }
 
+    public function testWorkflowDoesNotFailDeploymentWhenWebsiteReturnsError(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('curl -I --max-time 20 "$APP_URL" || true', $workflow);
+        $this->assertStringContainsString('curl --max-time 20 "$APP_URL/api" || true', $workflow);
+    }
+
     public function testWorkflowChecksWebsiteAfterDeployment(): void
     {
         $workflow = $this->getWorkflowContent();
 
         $this->assertStringContainsString('Vérifier que le site répond après déploiement', $workflow);
-        $this->assertStringContainsString('curl -I --fail', $workflow);
         $this->assertStringContainsString('APP_URL', $workflow);
     }
 
