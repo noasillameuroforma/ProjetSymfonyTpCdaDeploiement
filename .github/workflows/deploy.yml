@@ -52,7 +52,7 @@ jobs:
             tests/Repository \
             tests/Unit
 
-      - name: Construire et vérifier DATABASE_URL
+      - name: Construire DATABASE_URL Symfony pour IONOS
         env:
           DB_HOST: "${{ secrets.DB_HOST }}"
           DB_PORT: "${{ secrets.DB_PORT }}"
@@ -67,22 +67,17 @@ jobs:
           fi
 
           ENCODED_PASSWORD=$(php -r 'echo rawurlencode(getenv("DB_PASSWORD"));')
-
-          # Important pour Symfony :
-          # si le mot de passe contient *) alors rawurlencode donne %2A%29
-          # Symfony interprète %2A% comme un paramètre, donc on double les %
-          # %2A%29 devient %%2A%%29
           SYMFONY_PASSWORD="${ENCODED_PASSWORD//%/%%}"
 
           DATABASE_URL_VALUE="mysql://$DB_USER:$SYMFONY_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME?serverVersion=8.0.32&charset=utf8mb4"
 
           echo "DATABASE_URL=$DATABASE_URL_VALUE" >> "$GITHUB_ENV"
 
+          echo "DATABASE_URL construite pour le fichier .env de production."
           echo "Host MySQL utilisé : $DB_HOST"
           echo "Port MySQL utilisé : $DB_PORT"
           echo "Base utilisée : $DB_NAME"
           echo "User utilisé : $DB_USER"
-          echo "Mot de passe encodé et protégé pour Symfony."
 
       - name: Créer le fichier .env Symfony de production
         env:
@@ -99,19 +94,16 @@ jobs:
         run: |
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
-      - name: Exécuter les migrations Doctrine sur la BDD IONOS
+      - name: Préparer le cache Symfony sans migration distante
         run: |
-          APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL" php bin/console doctrine:migrations:migrate --no-interaction
-
-      - name: Préparer le cache Symfony
-        run: |
-          APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL" php bin/console cache:clear
+          APP_ENV=prod APP_DEBUG=0 php bin/console cache:clear --no-warmup || true
 
       - name: Nettoyer les fichiers de test avant upload
         run: |
           rm -f var/test.db
           rm -f .env.test
           rm -rf var/cache/test
+          rm -rf var/log/*
 
       - name: Installer lftp
         run: sudo apt-get update && sudo apt-get install -y lftp

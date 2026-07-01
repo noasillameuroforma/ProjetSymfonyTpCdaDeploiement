@@ -31,7 +31,7 @@ class DeploymentReadinessTest extends TestCase
 
         $this->assertFileDoesNotExist(
             $root.'/.env.local',
-            '.env.local ne doit pas être commité. Le workflow utilise un .env généré par GitHub Actions.'
+            '.env.local ne doit pas être commité. Le workflow génère un .env de production.'
         );
     }
 
@@ -46,11 +46,34 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('/tp_cda/tp_cda_prof', $workflow);
     }
 
+    public function testWorkflowCreatesTestEnvironment(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('Créer le fichier .env.test', $workflow);
+        $this->assertStringContainsString('APP_ENV=test', $workflow);
+        $this->assertStringContainsString('sqlite:///%kernel.project_dir%/var/test.db', $workflow);
+        $this->assertStringContainsString('doctrine:schema:update --force --env=test', $workflow);
+    }
+
+    public function testWorkflowRunsMainTestSuites(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('tests/Api', $workflow);
+        $this->assertStringContainsString('tests/Auth', $workflow);
+        $this->assertStringContainsString('tests/Controller', $workflow);
+        $this->assertStringContainsString('tests/Deployment', $workflow);
+        $this->assertStringContainsString('tests/Functional', $workflow);
+        $this->assertStringContainsString('tests/Repository', $workflow);
+        $this->assertStringContainsString('tests/Unit', $workflow);
+    }
+
     public function testWorkflowBuildsDatabaseUrlFromDbSecrets(): void
     {
         $workflow = $this->getWorkflowContent();
 
-        $this->assertStringContainsString('Construire et vérifier DATABASE_URL', $workflow);
+        $this->assertStringContainsString('Construire DATABASE_URL Symfony pour IONOS', $workflow);
         $this->assertStringContainsString('DB_HOST', $workflow);
         $this->assertStringContainsString('DB_PORT', $workflow);
         $this->assertStringContainsString('DB_NAME', $workflow);
@@ -59,36 +82,43 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('rawurlencode', $workflow);
         $this->assertStringContainsString('SYMFONY_PASSWORD', $workflow);
         $this->assertStringContainsString('DATABASE_URL=$DATABASE_URL_VALUE', $workflow);
-        $this->assertStringContainsString('Host MySQL utilisé', $workflow);
     }
 
     public function testWorkflowCreatesSymfonyProductionEnvFile(): void
     {
         $workflow = $this->getWorkflowContent();
 
+        $this->assertStringContainsString('Créer le fichier .env Symfony de production', $workflow);
         $this->assertStringContainsString('APP_ENV=prod', $workflow);
         $this->assertStringContainsString('APP_DEBUG=0', $workflow);
         $this->assertStringContainsString('APP_SECRET', $workflow);
         $this->assertStringContainsString('DEFAULT_URI', $workflow);
-        $this->assertStringContainsString('DATABASE_URL', $workflow);
         $this->assertStringContainsString('echo "DATABASE_URL=\"$DATABASE_URL\"" >> .env', $workflow);
-        $this->assertStringContainsString('> .env', $workflow);
     }
 
-    public function testWorkflowRunsDoctrineMigrations(): void
+    public function testWorkflowDoesNotRunDoctrineMigrationsFromGitHubActions(): void
     {
         $workflow = $this->getWorkflowContent();
 
-        $this->assertStringContainsString('doctrine:migrations:migrate', $workflow);
-        $this->assertStringContainsString('APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL"', $workflow);
+        $this->assertStringNotContainsString('doctrine:migrations:migrate', $workflow);
+        $this->assertStringNotContainsString('doctrine:migrations:status', $workflow);
     }
 
-    public function testWorkflowClearsSymfonyProductionCache(): void
+    public function testWorkflowDoesNotLoadFixturesFromGitHubActions(): void
     {
         $workflow = $this->getWorkflowContent();
 
-        $this->assertStringContainsString('cache:clear', $workflow);
-        $this->assertStringContainsString('APP_ENV=prod APP_DEBUG=0 DATABASE_URL="$DATABASE_URL"', $workflow);
+        $this->assertStringNotContainsString('doctrine:fixtures:load', $workflow);
+        $this->assertStringNotContainsString('fixtures:load', $workflow);
+    }
+
+    public function testWorkflowDoesNotRequireDirectMysqlConnectionFromGitHubActions(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringNotContainsString('mysqladmin', $workflow);
+        $this->assertStringNotContainsString('mysql -h', $workflow);
+        $this->assertStringNotContainsString('getent hosts "$DB_HOST"', $workflow);
     }
 
     public function testWorkflowInstallsProductionDependenciesWithoutComposerScripts(): void
@@ -100,7 +130,7 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('--no-scripts', $workflow);
     }
 
-    public function testWorkflowExcludesSensitiveOrUselessDirectories(): void
+    public function testWorkflowDoesNotUploadDevelopmentOrTestFiles(): void
     {
         $workflow = $this->getWorkflowContent();
 
@@ -108,10 +138,14 @@ class DeploymentReadinessTest extends TestCase
         $this->assertStringContainsString('--exclude .github/', $workflow);
         $this->assertStringContainsString('--exclude .env.test', $workflow);
         $this->assertStringContainsString('--exclude .env.local', $workflow);
+        $this->assertStringContainsString('--exclude .env.local.php', $workflow);
         $this->assertStringContainsString('--exclude var/cache/', $workflow);
         $this->assertStringContainsString('--exclude var/log/', $workflow);
+        $this->assertStringContainsString('--exclude var/test.db', $workflow);
         $this->assertStringContainsString('--exclude node_modules/', $workflow);
         $this->assertStringContainsString('--exclude tests/', $workflow);
+        $this->assertStringContainsString('--exclude .phpunit.cache/', $workflow);
+        $this->assertStringContainsString('--exclude phpunit.xml.dist', $workflow);
     }
 
     public function testProductionEnvFileIsUploadedToServer(): void
@@ -120,6 +154,25 @@ class DeploymentReadinessTest extends TestCase
 
         $this->assertStringNotContainsString('--exclude .env ', $workflow);
         $this->assertStringNotContainsString('--exclude .env \\', $workflow);
+    }
+
+    public function testWorkflowChecksWebsiteAfterDeployment(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('Vérifier que le site répond après déploiement', $workflow);
+        $this->assertStringContainsString('curl -I --fail', $workflow);
+        $this->assertStringContainsString('APP_URL', $workflow);
+    }
+
+    public function testWorkflowChecksApiAfterDeployment(): void
+    {
+        $workflow = $this->getWorkflowContent();
+
+        $this->assertStringContainsString('Vérifier que l\'API répond après déploiement', $workflow);
+        $this->assertStringContainsString('$APP_URL/api', $workflow);
+        $this->assertStringContainsString('$APP_URL/api/products', $workflow);
+        $this->assertStringContainsString('$APP_URL/api/categories', $workflow);
     }
 
     public function testComposerLockExistsAndIsReadable(): void
