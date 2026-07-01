@@ -142,8 +142,8 @@ class DeploymentReadinessTest extends TestCase
     {
         $workflow = $this->getWorkflowContent();
 
-        $this->assertStringContainsString('UPLOAD_VENDOR', $workflow);
-        $this->assertStringContainsString("secrets.UPLOAD_VENDOR == 'true'", $workflow);
+        $this->assertStringContainsString('UPLOAD_VENDOR: ${{ secrets.UPLOAD_VENDOR }}', $workflow);
+        $this->assertStringContainsString("if: env.UPLOAD_VENDOR == 'true'", $workflow);
         $this->assertStringContainsString('Envoyer sur IONOS en SFTP avec vendor', $workflow);
         $this->assertStringContainsString('premier déploiement avec vendor/', $workflow);
     }
@@ -152,7 +152,7 @@ class DeploymentReadinessTest extends TestCase
     {
         $workflow = $this->getWorkflowContent();
 
-        $this->assertStringContainsString("secrets.UPLOAD_VENDOR != 'true'", $workflow);
+        $this->assertStringContainsString("if: env.UPLOAD_VENDOR != 'true'", $workflow);
         $this->assertStringContainsString('Envoyer sur IONOS en SFTP sans vendor', $workflow);
         $this->assertStringContainsString('déploiement rapide sans vendor/', $workflow);
         $this->assertStringContainsString('--exclude vendor/', $workflow);

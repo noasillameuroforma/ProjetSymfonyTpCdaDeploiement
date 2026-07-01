@@ -9,6 +9,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:
+      UPLOAD_VENDOR: ${{ secrets.UPLOAD_VENDOR }}
+
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
@@ -113,7 +116,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lftp
 
       - name: Envoyer sur IONOS en SFTP avec vendor
-        if: ${{ secrets.UPLOAD_VENDOR == 'true' }}
+        if: env.UPLOAD_VENDOR == 'true'
         run: |
           echo "UPLOAD_VENDOR=true : premier déploiement avec vendor/"
           lftp -u "${{ secrets.SFTP_USER }}","${{ secrets.SFTP_PASSWORD }}" sftp://${{ secrets.SFTP_HOST }} <<EOF
@@ -140,7 +143,7 @@ jobs:
           EOF
 
       - name: Envoyer sur IONOS en SFTP sans vendor
-        if: ${{ secrets.UPLOAD_VENDOR != 'true' }}
+        if: env.UPLOAD_VENDOR != 'true'
         run: |
           echo "UPLOAD_VENDOR=false : déploiement rapide sans vendor/"
           lftp -u "${{ secrets.SFTP_USER }}","${{ secrets.SFTP_PASSWORD }}" sftp://${{ secrets.SFTP_HOST }} <<EOF
